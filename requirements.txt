@@ -1,0 +1,9 @@
+langchain-community 
+langchain-openai 
+langchain-chroma 
+unstructured[local-inference] 
+langchain-text-splitters
+setuptools
+crewai[tools]
+langchain_community
+python-dotenv

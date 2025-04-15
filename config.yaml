@@ -1,0 +1,18 @@
+usercred:
+  user: "scoughlin@assetedgesolutions.com"
+
+apis:
+  base_url: "https://uat.aes.corp/api"
+  authentication : "/SecureAuthentication/Login" #https://uat.aes.corp/api//SecureAuthentication/Login
+  unprocessed_documents: "/GenAI/GetUnprocessedDocs" #https://uat.aes.corp/api/GenAI/GetUnprocessedDocs/
+  get_documents: "/Activity/GetDocument" #https://uat.aes.corp/api/Activity/GetDocument/{documents id}
+  activity_update_status: "/GenAI/UpdateProcessedForAll/" #https://uat.aes.corp/api/GenAI/UpdateProcessedForDoc/{activity id}
+  docuement_update_status: "/GenAI/UpdateProcessedForDoc/" #https://uat.aes.corp/api/GenAI/UpdateProcessedForDoc/{documents id}
+  InsertDocKeyValues : "/GenAI/InsertDocKeyValues"
+  GetAllSteps : "/GenAI/GetAllSteps"
+  InsertStepResult : "/GenAI/InsertStepResult"
+  upload_asset_API_ENDPOINT: "/Assets/InsertUpdateAssetDetails"
+  dropdown_asset_types: "/Common/GetAssetTypes"
+  dropdown_strategy: "/Common/GetClassificationItems/14"
+  
+
