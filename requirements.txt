@@ -7,3 +7,5 @@ setuptools
 crewai[tools]
 langchain_community
 python-dotenv
+streamlit 
+pandas

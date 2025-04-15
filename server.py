@@ -5,16 +5,11 @@ import yaml
 import requests
 import json
 import re
-# from step6_crew import call_function_crew
 from step6_crew import run_crew_step6
 from step1_crew import run_crew_step1
 from step1_2_crew import run_crew_security_strategy
-# from datetime import datetime
-# from dateutil.relativedelta import relativedelta
 from automation.apis.process_documents import APIClient, PDFHandler
-# from automation.model.multivector import content_piepline
-# from sentence_transformers import SentenceTransformer
-# import subprocess  
+import subprocess  
 
 # Suppress warnings
 warnings.filterwarnings('ignore')
@@ -71,7 +66,7 @@ for doc in unprocessed_documents:
         document_content = document_response.get("DocumentContent")
 
         if output_path and document_content and document_name:
-            # PDFHandler.save_base64_as_pdf(document_content, output_path, document_name)
+            PDFHandler.save_base64_as_pdf(document_content, output_path, document_name)
             print(f"Saved document: {output_path}/{document_name}")
         else:
             print(f"Warning: Missing DocumentName or DocumentContent for ID {document_id}")
@@ -83,7 +78,7 @@ for doc in unprocessed_documents:
     except Exception as e:
         print(f"Unexpected error processing Document ID {document_id}: {e}")
 
-# subprocess.run([sys.executable, "vector_store.py"], check=True)
+subprocess.run([sys.executable, "vector_store.py"], check=True)
 print("Vector store updated successfully.")
 
 if not unprocessed_documents:
@@ -156,7 +151,7 @@ step1_asset_dict = json.loads(step1_asset_result)
 
 # Modify the full_name
 original_name = step1_asset_dict.get("full_name", "")
-step1_asset_dict["full_name"] = f"Vasanth Test 1 - {original_name}"
+step1_asset_dict["full_name"] = f"Vasanth Test 3 - {original_name}"
 
 # Convert back to JSON string if needed
 step1_asset_result_1 = json.dumps(step1_asset_dict, indent=4)
@@ -172,7 +167,7 @@ step1_asset_result = json.loads(step1_asset_result_1)
 # }
 
 # Step 1 
-genAIDocumentId = 107
+genAIDocumentId = 108
 # Create a list of key-value entries
 batch_payload = [
     {
