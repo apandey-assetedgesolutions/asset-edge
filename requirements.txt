@@ -9,3 +9,4 @@ langchain_community
 python-dotenv
 streamlit 
 pandas
+langchain_unstructured

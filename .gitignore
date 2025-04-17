@@ -1,3 +1,6 @@
 myenv/*
 chroma_db/*
 data/*
+automation/__pycache__/*
+__pycache__/*
+automation/*
