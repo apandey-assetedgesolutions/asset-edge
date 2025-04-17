@@ -8,9 +8,10 @@ import re
 from step6_crew import run_crew_step6
 from step1_crew import run_crew_step1
 from step1_2_crew import run_crew_security_strategy
+from step_share_class_crew import run_crew_fund_terms
 from automation.apis.process_documents import APIClient, PDFHandler
-import subprocess  
-
+import subprocess 
+from datetime import datetime
 # Suppress warnings
 warnings.filterwarnings('ignore')
 
@@ -66,7 +67,7 @@ for doc in unprocessed_documents:
         document_content = document_response.get("DocumentContent")
 
         if output_path and document_content and document_name:
-            PDFHandler.save_base64_as_pdf(document_content, output_path, document_name)
+            # PDFHandler.save_base64_as_pdf(document_content, output_path, document_name)
             print(f"Saved document: {output_path}/{document_name}")
         else:
             print(f"Warning: Missing DocumentName or DocumentContent for ID {document_id}")
@@ -78,7 +79,7 @@ for doc in unprocessed_documents:
     except Exception as e:
         print(f"Unexpected error processing Document ID {document_id}: {e}")
 
-subprocess.run([sys.executable, "vector_store.py"], check=True)
+# subprocess.run([sys.executable, "vector_store.py"], check=True)
 print("Vector store updated successfully.")
 
 if not unprocessed_documents:
@@ -87,6 +88,7 @@ else:
     print("Unprocessed Documents:", unprocessed_documents)
 
 activity_id = "1863"
+# genAIDocumentId=114
 # Preprocessing steps
 # Update Processed For All - once file downloaded and stored in vector database
 # try:
@@ -151,7 +153,7 @@ step1_asset_dict = json.loads(step1_asset_result)
 
 # Modify the full_name
 original_name = step1_asset_dict.get("full_name", "")
-step1_asset_dict["full_name"] = f"Vasanth Test 3 - {original_name}"
+step1_asset_dict["full_name"] = f"GenAI Test 5 - {original_name}"
 
 # Convert back to JSON string if needed
 step1_asset_result_1 = json.dumps(step1_asset_dict, indent=4)
@@ -167,7 +169,7 @@ step1_asset_result = json.loads(step1_asset_result_1)
 # }
 
 # Step 1 
-genAIDocumentId = 108
+genAIDocumentId = 123
 # Create a list of key-value entries
 batch_payload = [
     {
@@ -228,11 +230,113 @@ try:
     print("Inserted Step Results:", Insert_Step_Result)
 except Exception as e:
     print(f"Error inserting step results: {e}")
+#--------------------Share Class creation --------------------------------------------------------
+step4_result = run_crew_fund_terms(activity_id) #share class
+print(step4_result)
 
+# Prepare a new list to store cleaned classes
+cleaned_classes = []
+
+for cls in step4_result['classes']:
+    cleaned_class = {
+        'name': cls['name'],
+        'management_fee': float(cls['management_fee'].replace('%', '')),
+        'performance_fee': float(cls['performance_fee'].replace('%', '')),
+        'hurdle_value': float(cls['hurdle_value'].split('%')[0]),
+        'minimum_investment': int(cls['minimum_investment'].replace('$', '').replace(',', ''))
+    }
+    cleaned_classes.append(cleaned_class)
+    for idx, class_info in enumerate(cleaned_classes):
+        current_doc_id = genAIDocumentId + idx
+
+        batch_payload = [
+            {
+                "genAIDocumentId": current_doc_id,
+                "keyName": key,
+                "keyValue": value
+            }
+            for key, value in class_info.items()
+        ]
+
+        # API call per class
+        response = client.post_request(endpoint=InsertDocKeyValues, payload=batch_payload)
+        print(f"Inserted values for {class_info['name']} (DocID: {current_doc_id}): {response}")
+# ******Payload insert for user interface
+current_iso_datetime = datetime.utcnow().isoformat()
+for idx, class_info in enumerate(cleaned_classes):
+    is_default = (idx == 0)
+
+    share_class_payload = {
+        "shareClassId": 0,
+        "shareClassName": class_info["name"],
+        "assetId": asset_id,
+        "portfolioId": None,
+        "isDefault": is_default,
+        "inceptionDate": current_iso_datetime,
+        "effectiveDate": current_iso_datetime,
+        "minInvestment": class_info["minimum_investment"],
+        "subscriptionFrequencyId": None,
+        "subscriptionCurrencyIdList": "",
+        "taxReportingId": None,
+        "votingShares": False,
+        "newIssues": False,
+        "trackingFrequencyId": None,
+        "trackingById": None,
+        "accredited": False,
+        "qualifiedPurchaser": False,
+        "qualifiedClient": False,
+        "initialNAV": None,
+        "businessDays": False,
+        "modifiedBy": 0,
+        "liquidityTermsAbrev": None,
+        "feeDetails": {
+            "shareClassId": 0,
+            "mgmtFeeTierId": 0,
+            "mgmtFeeTierDesc": None,
+            "mgmtFee": str(class_info["management_fee"]),
+            "mgmtFeeFrequencyId": None,
+            "isMgmtFeeFreqPassThrough": False,
+            "perfFeeTierId": 0,
+            "perfFeeTierDesc": None,
+            "perfFee": str(class_info["performance_fee"]),
+            "perfFeePaymentFrequencyId": None,
+            "perfFeeAccrualFrequencyId": None,
+            "hurdleRateId": None,
+            "hurdleValue": str(class_info["hurdle_value"]),
+            "hurdleRateBenchMarkId": 0,
+            "lossRecovery": False,
+            "lossRecoveryResetId": None,
+            "modifiedBy": 0
+        }
+    }
+
+    try:
+        response = client.post_request(
+            endpoint="/AssetShareClass/InsertOrUpdateShareClass",
+            payload=share_class_payload
+        )
+        print(f"✅ Success: {class_info['name']} inserted. Response: {response}")
+    except Exception as e:
+        print(f"❌ Failed for {class_info['name']}: Exception - {e}")
+# ******
+step_name = "Share Class Creation"
+step_id = get_step_id_by_name(Get_All_Steps, step_name)
+print(f"Step ID for Returns Creation'{step_name}':", step_id)
+
+# Insert step results
+try:
+    InsertStepResult_payload = [
+        {"activityId": activity_id, "genAIDocumentId": genAIDocumentId, "stepId": step_id, "processResult": True , "processMessage": "Success"}]
+    Insert_Step_Result = client.post_request(endpoint=InsertStepResult, payload=InsertStepResult_payload)
+    print("Inserted Step Results:", Insert_Step_Result)
+except Exception as e:
+    print(f"Error inserting step results: {e}")
+#----------------------------------------------------------------------------
 print("Step 6: Asset returns creation")
 step6_result = run_crew_step6(activity_id)
 print(f"step1_result: {step1_result}")
 print(f"step1_2_result: {step1_2_result}")
+print(f"step4_result: {step4_result}")
 print(f"step6_result: {step6_result}")
 
 base_payload = {

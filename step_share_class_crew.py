@@ -25,11 +25,16 @@ def run_crew_fund_terms(collection_name):
 
     # Pydantic Models
     class FundClass(BaseModel):
-        name: str = Field(..., description="Official class name")
-        management_fee: str = Field("not found", description="Management fee percentage")
-        performance_fee: str = Field("not found", description="Performance fee percentage without conditions")
-        hurdle_value: str = Field("not found", description="Hurdle value percentage if specified")
-        minimum_investment: str = Field("not found", description="Minimum investment amount")
+        name: str = Field(..., description="Official class name exactly as stated in the document")
+        management_fee: str = Field("not found", description="Exact management fee percentage (e.g., '9.5%')")
+        performance_fee: str = Field("not found", description="Base performance fee percentage only (e.g., '100%')")
+        hurdle_value: str = Field("not found", description="Exact hurdle rate percentage if specified (e.g., '5%')")
+        minimum_investment: str = Field(
+            "not found",
+            description="Exact initial minimum investment converted to full numerical format. "
+            "Convert abbreviations: $5m → $5000000, £3k → £3000. "
+            "Only take the first value if multiple are present (e.g., '$5m (initial)' → '$5000000')"
+        )
 
     class FundClassesModel(BaseModel):
         classes: List[FundClass] = Field(..., description="List of fund share classes")
@@ -37,11 +42,11 @@ def run_crew_fund_terms(collection_name):
     # Custom Tools
     @tool
     def fund_terms_retriever(query: str = "") -> str:
-        """Retrieves relevant document chunks about fund classes and terms"""
+        """Retrieves document chunks about fund terms with enhanced context"""
         try:
             results = chroma_db.similarity_search(
-                "class management fee performance fee incentive fee hurdle rate minimum investment",
-                k=7
+                "class management fee performance fee hurdle rate minimum investment",
+                k=10  # Increased from 7 to 10 for more context
             )
             return "\n\n--- DOCUMENT CHUNK ---\n".join([doc.page_content for doc in results])
         except Exception as e:
@@ -67,18 +72,22 @@ def run_crew_fund_terms(collection_name):
     terms_task = Task(
         description=(
             "Analyze document chunks to identify all share classes and their terms:\n"
-            "1. Find all class references (Class A, B, C etc.)\n"
-            "2. Extract management fee for each class\n"
-            "3. Identify performance/incentive fees (without conditions)\n"
-            "4. Extract hurdle rate if specified\n"
-            "5. Determine minimum investment amounts\n\n"
-            "Critical Requirements:\n"
-            "- Maintain exact numerical values and percentages\n"
-            "- Separate fee percentages from conditions\n"
-            "- Preserve currency symbols and units\n"
-            "- Cross-validate information across document sections\n"
-            "- Report 'not found' for missing elements\n"
-            "- Handle tiered structures separately"
+            "1. Identify all class references (Class A, B, C etc.)\n"
+            "2. Extract exact numerical values for fees and investments\n"
+            "3. Cross-validate information across adjacent chunks (before/after)\n"
+            "4. Prioritize values from later document sections for updates\n"
+            "5. Reject any explanatory text - only keep %/$ values\n\n"
+            "Critical Enhancements:\n"
+            "- Verify values in both current chunk and neighboring chunks\n"
+            "- Resolve conflicts using most recent mention in document\n"
+            "- Strictly exclude any non-numerical explanations\n"
+            "- Handle tiered structures as separate entries"
+            "- Try to retrieve max 2 Class other than that as of now not needed, 2 should be accurate"
+            "6. For minimum investments:\n"
+            "   a) Convert abbreviated values (e.g., 67m → 67000000). Do NOT write 'million'\n"
+            "   b) Take ONLY the initial value before any parentheses/commas\n"
+            "   c) Preserve original currency symbols\n"
+            "   d) Try to retrieve accurate values, don't hallucinate any values"
         ),
         agent=fund_analyst,
         expected_output=(
@@ -96,7 +105,7 @@ def run_crew_fund_terms(collection_name):
                         "management_fee": "%",
                         "performance_fee": "%",
                         "hurdle_value": "%",
-                        "minimum_investment": "$"
+                        "minimum_investment": "$10000"
                     },
                     {
                         "name": "fund term defined in document",
@@ -123,7 +132,7 @@ def run_crew_fund_terms(collection_name):
     result = terms_crew.kickoff()
     return result
 
-if __name__ == "__main__":
-    collection = "2106"
-    benchmarks_json = run_crew_fund_terms(collection)
-    print(benchmarks_json)
+# if __name__ == "__main__":
+#     collection = "1863"
+#     benchmarks_json = run_crew_fund_terms(collection)
+#     print(benchmarks_json)
