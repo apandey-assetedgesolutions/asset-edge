@@ -9,6 +9,7 @@ from step6_crew import run_crew_step6
 from step1_crew import run_crew_step1
 from step1_2_crew import run_crew_security_strategy
 from step_share_class_crew import run_crew_fund_terms
+from service_providers import ServiceProviderProcessor
 from automation.apis.process_documents import APIClient, PDFHandler
 import subprocess 
 from datetime import datetime
@@ -394,7 +395,60 @@ try:
     print("Inserted Step Results:", Insert_Step_Result)
 except Exception as e:
     print(f"Error inserting step results: {e}")
-exit()
+
+
+# Service providers
+
+def get_company_types():
+    return client.get_request('/Assets/GetCompanyTypes')
+def get_companies_by_type(company_type_id):
+    return client.get_request(f'/Assets/GetCompanyByType/{company_type_id}')
+
+
+def update_service_provider(verified_info):
+    asset_id = 56748
+    try:
+        company_types = get_company_types()
+        for role, matched_name in verified_info.items():
+            for company_type in company_types:
+                if company_type["CompanyType"] == role:
+                    type_id = company_type["CompanyTypeID"]
+                    companies = get_companies_by_type(type_id)
+                    
+                    if isinstance(matched_name, list):  # e.g., Prime Broker
+                        for name in matched_name:
+                            for company in companies:
+                                if name.lower() in company["CompanyName"].lower():
+                                    company_id = company["CompanyID"]
+                                    assetCompanyXRefId = 0  # Let backend handle new insert
+                                    url = f"/Assets/InsertUpdateServiceProvider?assetCompanyXRefId={assetCompanyXRefId}&CompanyId={company_id}&CompanyTypeId={type_id}&AssetId={asset_id}"
+                                    response = client.post_request(endpoint=url)
+                                    print(f"Updated {role} with {company['CompanyName']} => {response}")
+                    else:
+                        for company in companies:
+                            if matched_name and matched_name.lower() in company["CompanyName"].lower():
+                                company_id = company["CompanyID"]
+                                assetCompanyXRefId = 0  # Let backend handle new insert
+                                url = f"/Assets/InsertUpdateServiceProvider?assetCompanyXRefId={assetCompanyXRefId}&CompanyId={company_id}&CompanyTypeId={type_id}&AssetId={asset_id}"
+                                response = client.post_request(endpoint=url)
+                                print(f"Updated {role} with {company['CompanyName']} => {response}")
+    except Exception as e:
+        print(f"Exception: {e}")
+
+
+
+def run_all():
+    service_provider = ServiceProviderProcessor()
+    service_provider.create_vector_store(activity_id)
+
+    print("Extracted Providers:", service_provider.extracted_info)
+    verified_info = service_provider.call_agent_to_verify()
+    print("Verified by LLM:\n", verified_info)
+    update_service_provider(verified_info)
+
+run_all()
+
+
 """
 print("Step3 Asset Attributes: ")
 Attribute_creation_payload = {

@@ -11,6 +11,24 @@ from langchain.docstore.document import Document
 # Load environment variables
 load_dotenv()
 
+from langchain_huggingface import HuggingFaceEmbeddings
+    # from langchain_openai import AzureChatOpenAI
+    # os.environ["AZURE_API_KEY"] = os.getenv('OPENAI_API_KEY')
+    # os.environ["AZURE_API_BASE"] = os.getenv('AZURE_OPENAI_ENDPOINT')
+    # os.environ["OPENAI_API_VERSION"] = "2023-03-15"
+
+    # llm = AzureChatOpenAI(
+    #     deployment_name="gpt-4o-mini",
+    #     model_name="azure/gpt-4o-mini",
+    #     temperature=0.9,
+    #     top_p=0.9
+    # )
+
+embedding = HuggingFaceEmbeddings(
+    model_name='sentence-transformers/all-MiniLM-L12-v2',
+    model_kwargs={'device': 'cpu'}
+)
+
 # Base folder where client folders are stored
 base_folder = "data"
 

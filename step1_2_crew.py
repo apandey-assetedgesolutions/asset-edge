@@ -1,11 +1,28 @@
-def run_crew_security_strategy(collection_name, asset_type_names, strategy_values):
-    from crewai import Agent, Task, Crew, Process
-    from langchain_chroma import Chroma
-    from langchain_openai import OpenAIEmbeddings
-    from crewai.tools import tool
-    from pydantic import BaseModel, Field
-    import os
+from crewai import Agent, Task, Crew, Process
+from langchain_chroma import Chroma
+from langchain_openai import OpenAIEmbeddings
+from crewai.tools import tool
+from pydantic import BaseModel, Field
+import os
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_openai import AzureChatOpenAI
+os.environ["AZURE_API_KEY"] = os.getenv('OPENAI_API_KEY')
+os.environ["AZURE_API_BASE"] = os.getenv('AZURE_OPENAI_ENDPOINT')
+os.environ["OPENAI_API_VERSION"] = "2023-03-15"
 
+llm = AzureChatOpenAI(
+    deployment_name="gpt-4o-mini",
+    model_name="azure/gpt-4o-mini",
+    temperature=0.9,
+    top_p=0.9
+)
+
+embeddings = HuggingFaceEmbeddings(
+model_name='sentence-transformers/all-MiniLM-L12-v2',
+model_kwargs={'device': 'cpu'}
+)
+
+def run_crew_security_strategy(collection_name, asset_type_names, strategy_values):
     max_iterations = 1
 
     # Define output model
@@ -15,9 +32,9 @@ def run_crew_security_strategy(collection_name, asset_type_names, strategy_value
 
     # Initialize ChromaDB
     def initialize_chroma(collection_name):
-        embeddings = OpenAIEmbeddings(
-            openai_api_key=os.getenv("OPENAI_API_KEY")
-        )
+        # embeddings = OpenAIEmbeddings(
+        #     openai_api_key=os.getenv("OPENAI_API_KEY")
+        # )
         return Chroma(
             persist_directory=f"chroma_db/{collection_name}",
             embedding_function=embeddings
