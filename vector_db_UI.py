@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
 import pandas as pd
+from utills import llm , embedding
 
 # Load environment variables
 load_dotenv()
@@ -17,8 +18,9 @@ menu_option = st.sidebar.radio("Go to", ["📄 All Documents", "🔍 Similarity 
 collection_names = ["1863", "2105", "2106"]
 selected_collection = st.sidebar.selectbox("Select a Collection", collection_names)
 
-# Initialize embeddings and vector store for selected collection
-embeddings = OpenAIEmbeddings(openai_api_key=os.getenv("OPENAI_API_KEY"))
+llm = llm
+embeddings = embedding
+
 vector_db = Chroma(
     embedding_function=embeddings,
     persist_directory=f"./chroma_db/{selected_collection}",

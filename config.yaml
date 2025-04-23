@@ -15,4 +15,6 @@ apis:
   dropdown_asset_types: "/Common/GetAssetTypes"
   dropdown_strategy: "/Common/GetClassificationItems/14"
   
-
+model:
+  openai_embeddings :  1   # 0 - Hugging Face , 1- Openai
+  openai_llm : 1            # 0 - Azure Open AI , 1 - Open AI

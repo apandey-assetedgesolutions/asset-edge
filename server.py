@@ -5,6 +5,7 @@ import yaml
 import requests
 import json
 import re
+from dotenv import load_dotenv
 from step6_crew import run_crew_step6
 from step1_crew import run_crew_step1
 from step1_2_crew import run_crew_security_strategy
@@ -13,8 +14,22 @@ from service_providers import ServiceProviderProcessor
 from automation.apis.process_documents import APIClient, PDFHandler
 import subprocess 
 from datetime import datetime
+load_dotenv()
 # Suppress warnings
 warnings.filterwarnings('ignore')
+import base64
+
+LANGFUSE_PUBLIC_KEY=os.getenv("LANGFUSE_PUBLIC_KEY")
+LANGFUSE_SECRET_KEY=os.getenv("LANGFUSE_SECRET_KEY")
+LANGFUSE_AUTH=base64.b64encode(f"{LANGFUSE_PUBLIC_KEY}:{LANGFUSE_SECRET_KEY}".encode()).decode()
+
+os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = "https://cloud.langfuse.com/api/public/otel" # EU data region
+# os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = "https://us.cloud.langfuse.com/api/public/otel" # US data region
+os.environ["OTEL_EXPORTER_OTLP_HEADERS"] = f"Authorization=Basic {LANGFUSE_AUTH}"
+
+import openlit
+
+openlit.init()
 
 # Load configuration
 def load_config():

@@ -14,30 +14,14 @@ from crewai.tools import tool
 warnings.filterwarnings('ignore')
 load_dotenv()
 
-os.environ["AZURE_API_KEY"] = os.getenv('OPENAI_API_KEY')
-os.environ["AZURE_API_BASE"] = os.getenv('AZURE_OPENAI_ENDPOINT')
-os.environ["OPENAI_API_VERSION"] = "2023-03-15"
+from utills import llm , embedding
 
-llm = AzureChatOpenAI(
-    deployment_name="gpt-4o-mini",
-    model_name="azure/gpt-4o-mini",
-    temperature=0.9,
-    top_p=0.9
-)
+llm = llm
+embeddings = embedding
 
-# llm = AzureChatOpenAI(
-#     deployment_name="gpt-4o-mini",
-#     model_name="azure/gpt-4o-mini",
-#     temperature=0.9,
-#     top_p=0.9
-# )
 
 persist_directory = "./chroma_db"
 
-embeddings = HuggingFaceEmbeddings(
-    model_name='sentence-transformers/all-MiniLM-L12-v2',
-    model_kwargs={'device': 'cpu'}
-)
 
 class ServiceProviderProcessor:
 

@@ -2,30 +2,16 @@ import os
 from dotenv import load_dotenv
 from crewai import Agent, Task, Crew, Process
 from langchain_chroma import Chroma
-from langchain_openai import OpenAIEmbeddings
 from crewai.tools import tool
 from pydantic import BaseModel, Field
 from typing import List
 import json
 
 load_dotenv()
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_openai import AzureChatOpenAI
-os.environ["AZURE_API_KEY"] = os.getenv('OPENAI_API_KEY')
-os.environ["AZURE_API_BASE"] = os.getenv('AZURE_OPENAI_ENDPOINT')
-os.environ["OPENAI_API_VERSION"] = "2023-03-15"
+from utills import llm , embedding
 
-llm = AzureChatOpenAI(
-    deployment_name="gpt-4o-mini",
-    model_name="azure/gpt-4o-mini",
-    temperature=0.9,
-    top_p=0.9
-)
-
-embeddings = HuggingFaceEmbeddings(
-model_name='sentence-transformers/all-MiniLM-L12-v2',
-model_kwargs={'device': 'cpu'}
-)
+llm = llm
+embeddings = embedding
 
 def run_crew_fund_terms(collection_name):
 
@@ -85,6 +71,7 @@ def run_crew_fund_terms(collection_name):
         ),
         allow_delegation=False,
         max_iterations=max_iterations,
+        llm=llm,
         memory=True
     )
 
