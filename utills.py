@@ -3,6 +3,7 @@ import yaml
 from langchain_openai import OpenAIEmbeddings ,ChatOpenAI
 from langchain_openai import AzureChatOpenAI
 from langchain_huggingface import HuggingFaceEmbeddings
+from automation.apis.process_documents import APIClient, PDFHandler
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -24,6 +25,14 @@ config = load_config()
 if not config:
     print("Configuration file is missing or invalid.")
     exit(1)
+
+user_email = config["usercred"]["user"]
+sp_get_company_types = config['apis']['service_provider_get_company_types']
+sp_get_companies_by_type = config['apis']['service_provider_get_companies_by_type']
+
+
+client = APIClient()
+token = client.authenticate(email=user_email)
 
 def choose_LLM(llm_model):
     llm = ""

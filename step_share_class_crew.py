@@ -47,7 +47,7 @@ def run_crew_fund_terms(collection_name):
 
     # Custom Tools
     @tool
-    def fund_terms_retriever(query: str = "") -> str:
+    def fund_terms_retriever() -> str:
         """Retrieves document chunks about fund terms with enhanced context"""
         try:
             results = chroma_db.similarity_search(

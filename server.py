@@ -10,7 +10,9 @@ from step6_crew import run_crew_step6
 from step1_crew import run_crew_step1
 from step1_2_crew import run_crew_security_strategy
 from step_share_class_crew import run_crew_fund_terms
+from step_liquidity_terms_crew import run_liquidity_terms_crew
 from service_providers import ServiceProviderProcessor
+from step_service_providers import run_company_validation_crew
 from automation.apis.process_documents import APIClient, PDFHandler
 import subprocess 
 from datetime import datetime
@@ -54,6 +56,14 @@ GetAllSteps = config["apis"]["GetAllSteps"]
 InsertStepResult = config["apis"]["InsertStepResult"]
 dropdown_asset_types = config["apis"]["dropdown_asset_types"]
 dropdown_strategy = config["apis"]["dropdown_strategy"]
+
+# Liquidity Terms Api
+
+liquidity_lock_type_ep = config["apis"]["liquidity_lock_type"]
+liquidity_required_notice_frequency_ep = config["apis"]["liquidity_required_notice_frequency"]
+liquidity_lockup_frequency_ep = config["apis"]["liquidity_lockup_frequency"]
+liquidity_investor_gate_frequency_ep = config["apis"]["liquidity_investor_gate_frequency"]
+liquidity_redemption_frequency_ep = config["apis"]["liquidity_redemption_frequency"]
 
 # Initialize API client
 client = APIClient()
@@ -169,7 +179,7 @@ step1_asset_dict = json.loads(step1_asset_result)
 
 # Modify the full_name
 original_name = step1_asset_dict.get("full_name", "")
-step1_asset_dict["full_name"] = f"GenAI Test 5 - {original_name}"
+step1_asset_dict["full_name"] = f"GenAI Test 1 - {original_name}"
 
 # Convert back to JSON string if needed
 step1_asset_result_1 = json.dumps(step1_asset_dict, indent=4)
@@ -185,7 +195,7 @@ step1_asset_result = json.loads(step1_asset_result_1)
 # }
 
 # Step 1 
-genAIDocumentId = 123
+genAIDocumentId = 501
 # Create a list of key-value entries
 batch_payload = [
     {
@@ -227,6 +237,7 @@ except Exception as e:
     print(f"Error inserting step results: {e}")
 print("Step 2: Asset creation")
 # Upload extracted data
+asset_id = 6000
 try:
     formatted_data = client.format_asset_data(step1_asset_result)
     asset_id = client.upload_asset(formatted_data)
@@ -347,6 +358,169 @@ try:
     print("Inserted Step Results:", Insert_Step_Result)
 except Exception as e:
     print(f"Error inserting step results: {e}")
+
+#----------------------------------------------------------------------------
+print("Liquidity Terms Creation")
+
+
+all_liquidity_lock = client.get_request(liquidity_lock_type_ep)
+lock_type = [lock_type["EnumName"] for lock_type in all_liquidity_lock]
+print(lock_type)
+
+all_notice_frequency = client.get_request(liquidity_required_notice_frequency_ep)
+notice_frequency_type = [notice_frequency["EnumName"] for notice_frequency in all_notice_frequency]
+print(notice_frequency_type)
+
+all_lockup_frequency = client.get_request(liquidity_lockup_frequency_ep)
+lockup_frequency_type = [lockup_frequency["EnumName"] for lockup_frequency in all_lockup_frequency]
+print(lockup_frequency_type)
+
+all_redemption_frequency = client.get_request(liquidity_redemption_frequency_ep)
+redemption_frequency_type = [redemption_frequency["FrequencyName"] for redemption_frequency in all_redemption_frequency]
+print(redemption_frequency_type)
+
+all_investor_gate_frequency = client.get_request(liquidity_investor_gate_frequency_ep)
+investor_gate_frequency_type = [investor_gate_frequency["FrequencyName"] for investor_gate_frequency in all_investor_gate_frequency]
+print(investor_gate_frequency_type)
+
+
+liquidity_terms_result = run_liquidity_terms_crew(
+    activity_id,
+    lock_type,
+    notice_frequency_type,
+    lockup_frequency_type,
+    redemption_frequency_type,
+    investor_gate_frequency_type
+)
+print(f"Liquidity Terms Response : {liquidity_terms_result}")
+
+cleaned_liquidity_classes = []
+
+for cls in liquidity_terms_result['classes']:
+    cleaned_class = {
+        'name': cls.get('name'),  
+        'required_notice': int(cls['required_notice']),
+        'notice_frequency': cls['notice_frequency'],
+        'redemption_frequency': cls['redemption_frequency'],
+        'lockup_types': cls['lockup_types'],
+        'lockup_frequency': cls['lockup_frequency'],
+        'investor_gate_percent': float(cls['investor_gate_percent'].replace('%', '')),
+        'investor_gate_frequency': cls['investor_gate_frequency']
+    }
+    cleaned_liquidity_classes.append(cleaned_class)
+
+    for idx, class_info in enumerate(cleaned_liquidity_classes):
+        current_doc_id = genAIDocumentId + idx
+
+        batch_payload = [
+            {
+                "genAIDocumentId": current_doc_id,
+                "keyName": key,
+                "keyValue": value
+            }
+            for key, value in class_info.items()
+        ]
+
+        # API call per liquidity class
+        response = client.post_request(endpoint=InsertDocKeyValues, payload=batch_payload)
+        print(f"Inserted liquidity values for {class_info['name']} (DocID: {current_doc_id}): {response}")
+
+
+def get_enum_id(all_data, frequency_name):
+    for frequency in all_data:
+        if frequency["EnumName"] == frequency_name:
+            return frequency["EnumValue"]
+    return None
+
+def get_frequency_id(all_data, frequency_name):
+    for frequency in all_data:
+        if frequency["FrequencyName"] == frequency_name:
+            return frequency["FrequencyId"]
+    return None
+
+liquidity_shared_cls_Ids = client.get_request(f"/AssetShareClass/GetShareClassListByAssetId/{asset_id},false")
+
+# Loop through each class entry
+for liquidity_class in cleaned_liquidity_classes:
+    class_name = liquidity_class.get("name")
+    requiredNoticeFrequencyName = liquidity_class.get("notice_frequency")
+    redemptionFrequencyName = liquidity_class.get("redemption_frequency")
+    lockTypeName = liquidity_class.get("lockup_types")
+    lockupFrequencyName = liquidity_class.get("lockup_frequency")
+    investorGateFrequencyName = liquidity_class.get("investor_gate_frequency")
+    investorGatePercent = liquidity_class.get("investor_gate_percent")
+    requiredNotice = liquidity_class.get("required_notice")
+
+    requiredNoticeFrequencyId = get_enum_id(all_notice_frequency, requiredNoticeFrequencyName)
+    lockupFrequencyId = get_enum_id(all_lockup_frequency, lockupFrequencyName)
+    lockType = get_enum_id(all_liquidity_lock, lockTypeName)
+    redemptionFrequencyId = get_frequency_id(all_redemption_frequency, redemptionFrequencyName)
+    investorGateFrequencyId = get_frequency_id(all_investor_gate_frequency, investorGateFrequencyName)
+
+
+    for liquidity_shared_cls in liquidity_shared_cls_Ids:
+        if liquidity_shared_cls['ShareClassName'] == class_name:
+            shareClassid = liquidity_shared_cls['ShareClassId']
+
+            liquidity_share_class_payload = {
+                "redemptionTermsId":0,
+                "shareClassid":shareClassid,
+                "lockType":lockType,
+                "penaltyPercent":0,
+                "redemptionFeePercent":0,
+                "rollingLockup":False,
+                "anniversary":False,
+                "redemptionFrequencyId":redemptionFrequencyId,
+                "lockupFrequencyId":0,
+                "lockupStart":0,
+                "lockupEnd":0,
+                "requiredNoticeFrequencyId":requiredNoticeFrequencyId,
+                "requiredNotice":requiredNotice,
+                "firstRedemptionMonth":3,
+                "investorGateFrequencyId":investorGateFrequencyId,
+                "investorGatePercent":investorGatePercent,
+                "investorGateCapResetFrequencyId":0,
+                "investorGateMaxCapPercent":0,
+                "investorGateUseNav":False,
+                "assetGateFrequencyId":0,
+                "assetGatePercent":0,
+                "notes":"string",
+                "modifiedBy":0
+            }
+  
+            try:
+                response = client.post_request(
+                    endpoint="/Liquidity/InsertOrUpdateLiquidityRedemptionTerms",
+                    payload=liquidity_share_class_payload
+                )
+                print(f"✅ Success: {class_name} inserted. Response: {response}")
+            except Exception as e:
+                print(f"❌ Failed for {class_name}: Exception - {e}")
+
+
+    print(f"Class: {class_name}")
+    print(f"  requiredNoticeFrequencyName = {requiredNoticeFrequencyName} : {requiredNoticeFrequencyId}")
+    print(f"  lockupFrequencyName = {lockupFrequencyName} : {lockupFrequencyId}")
+    print(f"  lockTypeName = {lockTypeName} : {lockType}")
+    print(f"  redemptionFrequencyName = {redemptionFrequencyName} : {redemptionFrequencyId}")
+    print(f"  investorGateFrequencyName = {investorGateFrequencyName} : {investorGateFrequencyId}")
+    print("-" * 60)
+
+# ******
+step_name = "Liquidity Creation"
+step_id = get_step_id_by_name(Get_All_Steps, step_name)
+print(f"Step ID for Returns Creation'{step_name}':", step_id)
+
+# Insert step results
+try:
+    InsertStepResult_payload = [
+        {"activityId": activity_id, "genAIDocumentId": genAIDocumentId, "stepId": step_id, "processResult": True , "processMessage": "Success"}]
+    Insert_Step_Result = client.post_request(endpoint=InsertStepResult, payload=InsertStepResult_payload)
+    print("Inserted Step Results:", Insert_Step_Result)
+except Exception as e:
+    print(f"Error inserting step results: {e}")
+
+
 #----------------------------------------------------------------------------
 print("Step 6: Asset returns creation")
 step6_result = run_crew_step6(activity_id)
@@ -413,55 +587,78 @@ except Exception as e:
 
 
 # Service providers
-
+#----------------------------------------------------------------------------
 def get_company_types():
     return client.get_request('/Assets/GetCompanyTypes')
 def get_companies_by_type(company_type_id):
     return client.get_request(f'/Assets/GetCompanyByType/{company_type_id}')
 
+service_provider_response = run_company_validation_crew(activity_id)
+print(service_provider_response)
 
-def update_service_provider(verified_info):
-    asset_id = 56748
-    try:
-        company_types = get_company_types()
-        for role, matched_name in verified_info.items():
-            for company_type in company_types:
-                if company_type["CompanyType"] == role:
-                    type_id = company_type["CompanyTypeID"]
-                    companies = get_companies_by_type(type_id)
+company_types = get_company_types()
+
+for company_type in company_types:
+    res_company_names = service_provider_response[f'{company_type['CompanyType']}']
+    type_id = company_type['CompanyTypeID']
+    if not res_company_names:
+        print(f"{res_company_names} is empty")
+    else:
+        company_names = get_companies_by_type(type_id)
+        for company_name in company_names:
+            if company_name['CompanyName'] in res_company_names:
+                company_id = company_name['CompanyID']
+                assetCompanyXRefId = 0 # Let backend handle new insert
+                url = f"/Assets/InsertUpdateServiceProvider?assetCompanyXRefId={assetCompanyXRefId}&CompanyId={company_id}&CompanyTypeId={type_id}&AssetId={asset_id}"
+                response = client.post_request(endpoint=url)
+                print(f"Sucessfully inserted The Type ID : {type_id} -> Company ID : {company_id}")
+            
+
+# def update_service_provider(verified_info):
+#     # asset_id = 56748
+#     try:
+#         company_types = get_company_types()
+#         for role, matched_name in verified_info.items():
+#             for company_type in company_types:
+#                 if company_type["CompanyType"] == role:
+#                     type_id = company_type["CompanyTypeID"]
+#                     companies = get_companies_by_type(type_id)
                     
-                    if isinstance(matched_name, list):  # e.g., Prime Broker
-                        for name in matched_name:
-                            for company in companies:
-                                if name.lower() in company["CompanyName"].lower():
-                                    company_id = company["CompanyID"]
-                                    assetCompanyXRefId = 0  # Let backend handle new insert
-                                    url = f"/Assets/InsertUpdateServiceProvider?assetCompanyXRefId={assetCompanyXRefId}&CompanyId={company_id}&CompanyTypeId={type_id}&AssetId={asset_id}"
-                                    response = client.post_request(endpoint=url)
-                                    print(f"Updated {role} with {company['CompanyName']} => {response}")
-                    else:
-                        for company in companies:
-                            if matched_name and matched_name.lower() in company["CompanyName"].lower():
-                                company_id = company["CompanyID"]
-                                assetCompanyXRefId = 0  # Let backend handle new insert
-                                url = f"/Assets/InsertUpdateServiceProvider?assetCompanyXRefId={assetCompanyXRefId}&CompanyId={company_id}&CompanyTypeId={type_id}&AssetId={asset_id}"
-                                response = client.post_request(endpoint=url)
-                                print(f"Updated {role} with {company['CompanyName']} => {response}")
-    except Exception as e:
-        print(f"Exception: {e}")
+#                     if isinstance(matched_name, list):  # e.g., Prime Broker
+#                         for name in matched_name:
+#                             for company in companies:
+#                                 if name.lower() in company["CompanyName"].lower():
+#                                     company_id = company["CompanyID"]
+#                                     assetCompanyXRefId = 0  # Let backend handle new insert
+#                                     url = f"/Assets/InsertUpdateServiceProvider?assetCompanyXRefId={assetCompanyXRefId}&CompanyId={company_id}&CompanyTypeId={type_id}&AssetId={asset_id}"
+#                                     response = client.post_request(endpoint=url)
+#                                     print(f"Updated {role} with {company['CompanyName']} => {response}")
+#                     else:
+#                         for company in companies:
+#                             if matched_name and matched_name.lower() in company["CompanyName"].lower():
+#                                 company_id = company["CompanyID"]
+#                                 assetCompanyXRefId = 0  # Let backend handle new insert
+#                                 url = f"/Assets/InsertUpdateServiceProvider?assetCompanyXRefId={assetCompanyXRefId}&CompanyId={company_id}&CompanyTypeId={type_id}&AssetId={asset_id}"
+#                                 response = client.post_request(endpoint=url)
+#                                 print(f"Updated {role} with {company['CompanyName']} => {response}")
+#     except Exception as e:
+#         print(f"Exception: {e}")
 
 
 
-def run_all():
-    service_provider = ServiceProviderProcessor()
-    service_provider.create_vector_store(activity_id)
+# def run_all():
+#     service_provider = ServiceProviderProcessor()
+#     service_provider.create_vector_store(activity_id)
 
-    print("Extracted Providers:", service_provider.extracted_info)
-    verified_info = service_provider.call_agent_to_verify()
-    print("Verified by LLM:\n", verified_info)
-    update_service_provider(verified_info)
+#     print("Extracted Providers:", service_provider.extracted_info)
+#     verified_info = service_provider.call_agent_to_verify()
+#     print("Verified by LLM:\n", verified_info)
+#     update_service_provider(verified_info)
 
-run_all()
+# run_all()
+
+
+
 
 
 """

@@ -14,7 +14,14 @@ apis:
   upload_asset_API_ENDPOINT: "/Assets/InsertUpdateAssetDetails"
   dropdown_asset_types: "/Common/GetAssetTypes"
   dropdown_strategy: "/Common/GetClassificationItems/14"
-  
+  liquidity_lock_type : "/Common/GetEnumeration/LiquidityLockType"
+  liquidity_required_notice_frequency: "/Common/GetEnumeration/LiquidityRequiredNoticeFrequency"
+  liquidity_lockup_frequency : "/Common/GetEnumeration/LiquidityLockupFrequency"
+  liquidity_investor_gate_frequency: "/Common/GetFrequencies/2"
+  liquidity_redemption_frequency : "/Common/GetFrequencies/1"
+  service_provider_get_company_types : "/Assets/GetCompanyTypes"
+  service_provider_get_companies_by_type : "/Assets/GetCompanyByType/"
+
 model:
   openai_embeddings :  1   # 0 - Hugging Face , 1- Openai
   openai_llm : 1            # 0 - Azure Open AI , 1 - Open AI

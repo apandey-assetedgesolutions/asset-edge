@@ -47,9 +47,11 @@ def run_crew_step1(collection_name):
             'abbreviation': crew_output.abbreviation,
             'date_of_inception': crew_output.date_of_inception
         }
+    class DocumentChunkRetrieverInput(BaseModel):
+        query: str = ""
 
     @tool
-    def document_chunks_retriever(query: str = "") -> str:  # Add default value
+    def document_chunks_retriever(input: DocumentChunkRetrieverInput) -> str:  # Add default value
         """Retrieves first 5 document chunks from each file in collection"""
         try:
             all_chunks = []
@@ -70,8 +72,11 @@ def run_crew_step1(collection_name):
         except Exception as e:
             return f"ERROR|FAILED_PERMANENTLY|{str(e)}"
 
+    class InceptionRetrieverInput(BaseModel):
+        query: str = ""
+
     @tool
-    def inception_date_retriever(query: str = "") -> str:  # Add default empty string
+    def inception_date_retriever() -> str:  # Add default empty string
         """Retrieves top 5 document chunks related to fund inception dates"""
         try:
             results = chroma_db.similarity_search(
