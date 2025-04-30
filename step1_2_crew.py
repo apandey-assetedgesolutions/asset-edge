@@ -14,7 +14,12 @@ def run_crew_security_strategy(collection_name, asset_type_names, strategy_value
     # Define output model
     class InvestmentAttributes(BaseModel):
         security_type: str = Field(..., description="Matched security type from predefined list or N/A")
+        security_type_source: str = Field(..., description="Source file for the matched security type")
+        security_type_source_page_label: int = Field(..., description="Page label where the security type match was found")
+        
         strategy_value: str = Field(..., description="Matched strategy value from predefined list or N/A")
+        strategy_value_source: str = Field(..., description="Source file for the matched strategy value")
+        strategy_value_source_page_label: int = Field(..., description="Page label where the strategy value match was found")
 
     # Initialize ChromaDB
     def initialize_chroma(collection_name):
@@ -42,7 +47,10 @@ def run_crew_security_strategy(collection_name, asset_type_names, strategy_value
             k=10,  # Increased context window
             fetch_k=20  # Broader initial search
         )
-        return "\n\n--- SECURITY CONTEXT ---\n".join([doc.page_content for doc in results])
+        return "\n\n--- SECURITY CONTEXT ---\n".join([
+                f"Content : {doc.page_content}\nPage Number : {doc.metadata['page_label']}\nSource File : \'{doc.metadata['source_file']}\'"
+                for doc in results
+            ])
 
     @tool
     def strategy_value_search():
@@ -58,8 +66,10 @@ def run_crew_security_strategy(collection_name, asset_type_names, strategy_value
             fetch_k=20,
             lambda_mult=0.6  # Balance diversity/relevance
         )
-        return "\n\n--- STRATEGY CONTEXT ---\n".join([doc.page_content for doc in results])
-
+        return "\n\n--- SECURITY CONTEXT ---\n".join([
+                f"Content : {doc.page_content}\nPage Number : {doc.metadata['page_label']}\nSource File : \'{doc.metadata['source_file']}\'"
+                for doc in results
+            ])
     # Enhanced Security Agent
     security_analyst = Agent(
         role="Security Classification Specialist",

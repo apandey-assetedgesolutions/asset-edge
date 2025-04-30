@@ -7,11 +7,13 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_openai import AzureChatOpenAI
 from crewai.tools import tool
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List , Optional
 import json
+from datetime import date
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="onnxruntime.*")
 load_dotenv()
+from collections import defaultdict
 
 from utills import llm , embedding
 
@@ -37,8 +39,16 @@ def run_crew_step1(collection_name):
     # Define your output validation model
     class FundMetadataModel(BaseModel):
         full_name: str = Field(..., description="Official full name of the fund")
+        full_name_source: str = Field(..., description="Source File of the full name, in Document Metadata")
+        full_name_source_page_label: int = Field(..., description="Page labels for the full name are taken from where you find the full name in the Document Metadata.")
+
         abbreviation: str = Field(..., description="Short form abbreviation of the fund name")
+        abbreviation_source: str = Field(..., description="Source File of the abbreviation, in Document Metadata")
+        abbreviation_source_page_label: int = Field(..., description="Page labels for the abbreviation are taken from where the abbreviation is found in the Document Metadata.")
+        
         date_of_inception: str = Field("not found", description="Fund inception date in YYYY-MM-DD format or 'not found'")
+        date_of_inception_source: str = Field(..., description="Source File of the inception date, in Document Metadata")
+        date_of_inception_source_page_label: int = Field(..., description="Page labels for the date_of_inception are taken from where the date_of_inception is found in the Document Metadata.")
 
     def convert_crewoutput_to_dict(crew_output):
         """Convert CrewOutput object to serializable dictionary"""
@@ -58,16 +68,37 @@ def run_crew_step1(collection_name):
             
             # Get all unique sources from ChromaDB metadata
             all_metadata = chroma_db.get(include=["metadatas"])["metadatas"]
-            sources = {meta['source'] for meta in all_metadata if meta}
-            # Get first 5 chunks per source
+            grouped_chunks = defaultdict(list)
+            page_labels_by_source = defaultdict(set)
+
+            sources = {meta['source_file'] for meta in all_metadata if meta}
+
             for source in sources:
                 results = chroma_db.get(
-                    where={"source": source},
-                    limit=5,
-                    include=["documents"]
+                    where={"source_file": source},
+                    limit=4,
+                    include=["documents", "metadatas"]
                 )
-                all_chunks.extend(results.get("documents", []))
-            
+
+                documents = results.get("documents", [])
+                metadatas = results.get("metadatas", [])
+
+                for doc, meta in zip(documents, metadatas):
+                    grouped_chunks[source].append(doc)
+
+                    # Collect page_label only for the fetched documents
+                    page_label = meta.get("page_label") if meta else None
+                    if page_label:
+                        page_labels_by_source[source].add(page_label)
+
+            # Merge grouped docs into final chunks with correct page_label list
+            all_chunks = [
+                f"Content: {' '.join(docs)}\n"
+                f"Source File: {src}\n"
+                f"Page Labels: {list(page_labels_by_source.get(src, []))}"
+                for src, docs in grouped_chunks.items()
+            ]
+                        
             return "\n\n--- DOCUMENT CHUNK ---\n".join(all_chunks)
         except Exception as e:
             return f"ERROR|FAILED_PERMANENTLY|{str(e)}"
@@ -81,9 +112,17 @@ def run_crew_step1(collection_name):
         try:
             results = chroma_db.similarity_search(
                 "inception date established founded effective date",
-                k=5
+                k=4
             )
-            return "\n\n--- DOCUMENT CHUNK ---\n".join([doc.page_content for doc in results])
+
+            return "\n\n--- DOCUMENT CHUNK ---\n".join(
+                [
+                    f"Content: {doc.page_content}\n"
+                    f"Source File: {doc.metadata.get('source_file', 'unknown')}\n"
+                    f"Page Label: {doc.metadata.get('page_label', '[]')}"
+                    for doc in results
+                ]
+            )
         except Exception as e:
             return f"ERROR|FAILED_PERMANENTLY|{str(e)}"
 
@@ -127,6 +166,8 @@ def run_crew_step1(collection_name):
             "Example:\n"
             '''{
                 "full_name": "Ibex Israel Public Equity Fund L.P.",
+                "full_name_source": "file_name.pdf",
+                "full_name_source_page_label": -1,
                 "abbreviation": "ibex"
             }'''
         ),
@@ -165,9 +206,12 @@ def run_crew_step1(collection_name):
             "- date_of_inception (current analysis)\n"
             "Example:\n"
             '''{
-                "full_name": "Ibex Israel Public Equity Fund L.P.",
-                "abbreviation": "ibex",
-                "date_of_inception": "2022-02-01"
+                "full_name": "Tata consultancy services",
+                "full_name_source": "file_name.pdf",
+                "full_name_source_page_label": -1,
+                "abbreviation": "TCS",
+                "abbreviation_source": "file_name.pdf",
+                "abbreviation_source_page_label": -1
             }'''
         ),
         context=[metadata_task],

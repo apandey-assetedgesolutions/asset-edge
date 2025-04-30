@@ -32,15 +32,30 @@ def run_crew_fund_terms(collection_name):
     # Pydantic Models
     class FundClass(BaseModel):
         name: str = Field(..., description="Official class name exactly as stated in the document")
+        name_source_file: str = Field(..., description="Find Source File of the class name, in Document Metadata")
+        name_source_page_label: int = Field(..., description="Page label where the class name is found in the Document Metadata")
+        
         management_fee: str = Field("not found", description="Exact management fee percentage (e.g., '9.5%')")
+        management_fee_source_file: str = Field(..., description="Find Source File of the management fee, in Document Metadata")
+        management_fee_source_page_label: int = Field(..., description="Page label where the management fee is found in the Document Metadata")
+
         performance_fee: str = Field("not found", description="Base performance fee percentage only (e.g., '100%')")
+        performance_fee_source_file: str = Field(..., description="Find Source File of the performance fee, in Document Metadata")
+        performance_fee_source_page_label: int = Field(..., description="Page label where the performance fee is found in the Document Metadata")
+
         hurdle_value: str = Field("not found", description="Exact hurdle rate percentage if specified (e.g., '5%')")
+        hurdle_value_source_file: str = Field(..., description="Find Source File of the hurdle value, in Document Metadata")
+        hurdle_value_source_page_label: int = Field(..., description="Page label where the hurdle value is found in the Document Metadata")
+
         minimum_investment: str = Field(
             "not found",
             description="Exact initial minimum investment converted to full numerical format. "
             "Convert abbreviations: $5m → $5000000, £3k → £3000. "
             "Only take the first value if multiple are present (e.g., '$5m (initial)' → '$5000000')"
         )
+        minimum_investment_source_file: str = Field(..., description="Find Source File of the minimum investment, in Document Metadata")
+        minimum_investment_source_page_label: int = Field(..., description="Page label where the minimum investment is found in the Document Metadata")
+
 
     class FundClassesModel(BaseModel):
         classes: List[FundClass] = Field(..., description="List of fund share classes")
@@ -54,7 +69,11 @@ def run_crew_fund_terms(collection_name):
                 "class management fee performance fee hurdle rate minimum investment",
                 k=10  # Increased from 7 to 10 for more context
             )
-            return "\n\n--- DOCUMENT CHUNK ---\n".join([doc.page_content for doc in results])
+            return "\n\n--- SECURITY CONTEXT ---\n".join([
+                f"Content : {doc.page_content}\nPage Number : {doc.metadata['page_label']}\nSource File : \'{doc.metadata['source_file']}\'"
+                for doc in results
+            ])
+            
         except Exception as e:
             return f"ERROR|FAILED_PERMANENTLY|{str(e)}"
 
