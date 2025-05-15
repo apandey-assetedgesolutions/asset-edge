@@ -40,7 +40,7 @@ if 'data_loaded' not in st.session_state:
 if 'current_step' not in st.session_state:
     st.session_state.current_step = 0
 if 'asset_id' not in st.session_state:
-    st.session_state.asset_id = 56753
+    st.session_state.asset_id = None
 if 'uploaded_steps' not in st.session_state:
     st.session_state.uploaded_steps = set()
 if 'active_section' not in st.session_state:
@@ -155,6 +155,10 @@ def handle_submit_all_remaining():
     else:
         st.success("All sections submitted successfully!")
 
+def add_track_result_db(section_data):
+    for track in section_data['track_result']:
+        client.post_request(endpoint=track['endpoint'],payload=track['payload'])
+
 # Function to handle submission of a specific section
 def handle_section_submission(section_data, edited_data=None):
     endpoint = section_data['endpoint']
@@ -164,6 +168,7 @@ def handle_section_submission(section_data, edited_data=None):
         # Handle the case where we need to call the asset creation method
         if endpoint == "upload_asset":
             asset_id = client.upload_asset(payload)
+            add_track_result_db(section_data)
             if asset_id:
                 st.session_state.asset_id = asset_id
                 return True
@@ -189,6 +194,7 @@ def handle_section_submission(section_data, edited_data=None):
                     new_query = urlencode(query_params, doseq=True)
                     new_url = urlunparse(parsed_url._replace(query=new_query))
                     response = client.post_request(endpoint=new_url)
+                    add_track_result_db(section_data)
                     if not response:
                         st.error(f"Failed to add service provider: {provider['company_type']}")
                         all_success = False
@@ -204,6 +210,7 @@ def handle_section_submission(section_data, edited_data=None):
                         endpoint="/AssetShareClass/InsertOrUpdateShareClass",
                         payload=new_payload
                     )
+                    add_track_result_db(section_data)
                     if not response:
                         st.error(f"Failed to add service provider: {response}")                                    
                         return False
@@ -222,6 +229,7 @@ def handle_section_submission(section_data, edited_data=None):
                             endpoint="/Liquidity/InsertOrUpdateLiquidityRedemptionTerms",
                             payload=new_payload
                         )
+                        add_track_result_db(section_data)
                         if not response:
                             st.error(f"Failed to add service provider: {response}")                                    
                             return False
@@ -237,6 +245,7 @@ def handle_section_submission(section_data, edited_data=None):
                     elif isinstance(item, dict) and 'entityId' in item:
                         item['entityId'] = st.session_state.asset_id
                         response = client.post_request(endpoint=endpoint, payload=item)
+                        add_track_result_db(section_data)
                         if not response:
                             st.error(f"Failed to add service provider: {response}")                                    
                             return False
@@ -746,8 +755,8 @@ if st.session_state.authenticated and st.session_state.data_loaded:
         st.write(f"Overall Progress: {len(st.session_state.uploaded_steps)}/{len(filtered_data)} sections")
         
         # Submit all remaining button in sidebar
-        if st.button("Submit All Remaining Sections", use_container_width=True):
-            handle_submit_all_remaining()
+        # if st.button("Submit All Remaining Sections", use_container_width=True):
+        #     handle_submit_all_remaining()
 
     # Main content area
     st.title("Fund Data Review & Submission")

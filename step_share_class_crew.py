@@ -69,7 +69,7 @@ def run_crew_fund_terms(collection_name):
                 "class management fee performance fee hurdle rate minimum investment",
                 k=10  # Increased from 7 to 10 for more context
             )
-            return "\n\n--- SECURITY CONTEXT ---\n".join([
+            return "\n\n--- DOCUMENT CHUNK ---\n".join([
                 f"Content : {doc.page_content}\nPage Number : {doc.metadata['page_label']}\nSource File : \'{doc.metadata['source_file']}\'"
                 for doc in results
             ])

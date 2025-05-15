@@ -4,7 +4,6 @@ from dotenv import load_dotenv
 from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
 import pandas as pd
-from utills import llm , embedding
 
 # Load environment variables
 load_dotenv()
@@ -18,13 +17,16 @@ menu_option = st.sidebar.radio("Go to", ["📄 All Documents", "🔍 Similarity 
 collection_names = ["1863", "2105", "2106"]
 selected_collection = st.sidebar.selectbox("Select a Collection", collection_names)
 
-llm = llm
-embeddings = embedding
+# Cached vector DB loader
+@st.cache_resource
+def load_vector_db(collection_name):
+    embeddings = OpenAIEmbeddings(openai_api_key=os.getenv("OPENAI_API_KEY"))
+    return Chroma(
+        embedding_function=embeddings,
+        persist_directory=f"./chroma_db/{collection_name}",
+    )
 
-vector_db = Chroma(
-    embedding_function=embeddings,
-    persist_directory=f"./chroma_db/{selected_collection}",
-)
+vector_db = load_vector_db(selected_collection)
 
 # -------------------------------------
 # 📄 All Documents Page
@@ -42,7 +44,8 @@ if menu_option == "📄 All Documents":
                 grouped_docs.setdefault(source, []).append(doc)
             
             for source, docs_group in grouped_docs.items():
-                with st.expander(f"Source: {source}"):
+                chunk_count = len(docs_group)
+                with st.expander(f"Source: {source} ({chunk_count} chunks)"):
                     data = [{"Page Content": doc.page_content} for doc in docs_group]
                     df = pd.DataFrame(data)
                     st.table(df)

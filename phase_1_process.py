@@ -18,7 +18,7 @@ from datetime import datetime
 import openlit
 
 # Function to store data for later review instead of immediate API submission
-def store_data_for_review(data_type, payload, endpoint=None,source_details=""):
+def store_data_for_review(data_type, payload, endpoint=None, source_details="", track_result=[]):
     """
     Store data for later review instead of immediate API submission
     
@@ -26,15 +26,26 @@ def store_data_for_review(data_type, payload, endpoint=None,source_details=""):
         data_type: Type of data being stored (string)
         payload: Data to be stored
         endpoint: API endpoint where this data would be sent (optional)
-    
+        source_details: Optional details about the data source (string)
+        track_result: Optional list to track results (list)
+
     Returns:
-        Dict containing the data type, payload, and endpoint
+        Dict containing the data type, payload, endpoint, source details, and track result
     """
     return {
         "data_type": data_type,
         "payload": payload,
         "endpoint": endpoint,
-        "source_details":source_details
+        "source_details": source_details,
+        "track_result": track_result
+    }
+
+
+def store_data_setup(data_type, payload, endpoint=None):
+    return {
+        "data_type": data_type,
+        "payload": payload,
+        "endpoint": endpoint,
     }
 
 # Initialize global storage for all data to be reviewed
@@ -182,14 +193,14 @@ step1_asset_dict = json.loads(step1_asset_result)
 
 # Modify the full_name
 original_name = step1_asset_dict.get("full_name", "")
-step1_asset_dict["full_name"] = f"GenAI Test 2 - {original_name}"
+step1_asset_dict["full_name"] = f"GenAI Test 12 - {original_name}"
 
 # Convert back to JSON string if needed
 step1_asset_result_1 = json.dumps(step1_asset_dict, indent=4)
 step1_asset_result = json.loads(step1_asset_result_1)
 
 # Step 1 
-genAIDocumentId = 510
+genAIDocumentId = 580
 # Create a list of key-value entries
 batch_payload = [
     {
@@ -198,12 +209,12 @@ batch_payload = [
         "keyValue": value
     }
     for key, value in step1_asset_result.items()
-    if key not in {"security_type_id", "strategy_value_id"}
+    if key in {"full_name", "abbreviation",'date_of_inception','security_type','strategy_value'}
 ]
 
 # # Store data instead of API call
 # all_collected_data.append(store_data_for_review(
-#     "", 
+#     "Asset Creation Data(Key-Value Pairs)", 
 #     batch_payload,
 #     InsertDocKeyValues
 # ))
@@ -230,23 +241,23 @@ InsertStepResult_payload = [
     {"activityId": activity_id, "genAIDocumentId": genAIDocumentId, "stepId": step_id, "processResult": True, "processMessage": "Success"}]
 
 # all_collected_data.append(store_data_for_review(
-#     "", 
+#     "Asset Creation Data(Step-Result)", 
 #     InsertStepResult_payload,
 #     InsertStepResult
 # ))
 
+n_v_step_result = store_data_setup(
+    "Name Value Pair(Step-Result)", 
+    InsertStepResult_payload,
+    InsertStepResult
+)
+
 print("Step 2: Asset creation")
 # Generate asset data, but store for review instead of uploading
 formatted_data = client.format_asset_data(step1_asset_result)
-all_collected_data.append(store_data_for_review(
-    "Asset Creation Data", 
-    formatted_data,
-    "upload_asset", # Special handling for this method call
-    step1_asset_result
-))
 
 # Store a fixed asset ID for now (will be updated after actual API call)
-asset_id = 6000  # Placeholder value
+asset_id = 56810  # Placeholder value
 
 step_name = "Asset Creation"
 step_id = get_step_id_by_name(Get_All_Steps, step_name)
@@ -262,22 +273,56 @@ InsertStepResult_payload = [
 #     InsertStepResult
 # ))
 
+
+a_c_key_value_pair = store_data_setup(
+    "Asset Creation Data(Key-Value Pairs)", 
+    batch_payload,
+    InsertDocKeyValues
+)
+
+a_c_step_result = store_data_setup(
+    "Asset Creation Data(Step-Result)", 
+    InsertStepResult_payload,
+    InsertStepResult
+)
+
+all_collected_data.append(store_data_for_review(
+    "Asset Creation Data", 
+    formatted_data,
+    "upload_asset", # Special handling for this method call
+    step1_asset_result,
+    [a_c_key_value_pair,n_v_step_result,a_c_step_result]
+))
+
 #--------------------Share Class creation --------------------------------------------------------
 step4_result = run_crew_fund_terms(activity_id) #share class
 print(f"Step 4 Result : {step4_result}")
 
 # Prepare a new list to store cleaned classes
 cleaned_classes = []
+
+def safe_float(value, default=0.0):
+    if isinstance(value, str):
+        value = value.lower().strip().replace('%', '')
+        if value in ['not found', '', 'n/a', 'none']:
+            return default
+        try:
+            return float(value)
+        except ValueError:
+            return default
+    return default
+
 for cls in step4_result['classes']:
     cleaned_class = {
         'name': cls['name'],
-        'management_fee': float(cls['management_fee'].replace('%', '')),
-        'performance_fee': float(cls['performance_fee'].replace('%', '')),
-        'hurdle_value': float(cls['hurdle_value'].split('%')[0]),
-        'minimum_investment': int(cls['minimum_investment'].replace('$', '').replace(',', ''))
+        'management_fee': safe_float(cls.get('management_fee')),
+        'performance_fee': safe_float(cls.get('performance_fee')),
+        'hurdle_value': safe_float(cls.get('hurdle_value').split('%')[0] if isinstance(cls.get('hurdle_value'), str) and '%' in cls.get('hurdle_value') else cls.get('hurdle_value')),
+        'minimum_investment': safe_float(cls.get('minimum_investment')),
     }
     cleaned_classes.append(cleaned_class)
 
+batch_payloads = []
 # Store each share class key-value pairs
 for idx, class_info in enumerate(cleaned_classes):
     current_doc_id = genAIDocumentId + idx
@@ -289,14 +334,27 @@ for idx, class_info in enumerate(cleaned_classes):
             "keyValue": value
         }
         for key, value in class_info.items()
+        if key in {"name", "management_fee", 'performance_fee', 'hurdle_value','minimum_investment'}
     ]
+    batch_payloads.append(batch_payload)
 
     # Store data instead of API call
     # all_collected_data.append(store_data_for_review(
-    #     f"", 
+    #     f"Share Class Creation(Key-Value Pairs)", 
     #     batch_payload,
     #     InsertDocKeyValues
     # ))
+
+s_c_key_value_pair = store_data_setup(
+        f"Share Class Creation(Key-Value Pairs)", 
+        batch_payloads[0],
+        InsertDocKeyValues
+    )
+s_c_key_value_pair2 = store_data_setup(
+        f"Share Class Creation(Key-Value Pairs)", 
+        batch_payloads[1],
+        InsertDocKeyValues
+    )
 
 # Store share class payloads
 current_iso_datetime = datetime.utcnow().isoformat()
@@ -355,13 +413,6 @@ share_class_creation = step4_result.to_dict()
 step_4_share_class = json.dumps(share_class_creation, indent=4)
 step_4_share_class = json.loads(step_4_share_class)
 
-# Store share class creation data
-all_collected_data.append(store_data_for_review(
-    "Share Class Creation", 
-    share_class_payloads,
-    "share_class",
-    step_4_share_class
-))
 
 step_name = "Share Class Creation"
 step_id = get_step_id_by_name(Get_All_Steps, step_name)
@@ -376,6 +427,21 @@ InsertStepResult_payload = [
 #     InsertStepResult_payload,
 #     InsertStepResult
 # ))
+
+s_c_step_result = store_data_setup(
+    "Share Class Creation(Step-Result)", 
+    InsertStepResult_payload,
+    InsertStepResult
+)
+
+# Store share class creation data
+all_collected_data.append(store_data_for_review(
+    "Share Class Creation", 
+    share_class_payloads,
+    "share_class",
+    step_4_share_class,
+    [s_c_key_value_pair,s_c_key_value_pair2,s_c_step_result]
+))
 
 #----------------------------------------------------------------------------
 print("Liquidity Terms Creation")
@@ -424,9 +490,10 @@ for cls in liquidity_terms_result['classes']:
     }
     cleaned_liquidity_classes.append(cleaned_class)
 
+batch_payloads = []
 # Store each liquidity class key-value pairs
 for idx, class_info in enumerate(cleaned_liquidity_classes):
-    current_doc_id = genAIDocumentId + idx
+    current_doc_id = genAIDocumentId + idx+2
 
     batch_payload = [
         {
@@ -435,7 +502,9 @@ for idx, class_info in enumerate(cleaned_liquidity_classes):
             "keyValue": value
         }
         for key, value in class_info.items()
+        if key in {"name", "required_notice", 'notice_frequency', 'redemption_frequency','lockup_types','lockup_frequency','investor_gate_percent','investor_gate_frequency'}
     ]
+    batch_payloads.append(batch_payload)
 
     # Store data instead of API call
     # all_collected_data.append(store_data_for_review(
@@ -443,6 +512,16 @@ for idx, class_info in enumerate(cleaned_liquidity_classes):
     #     batch_payload,
     #     InsertDocKeyValues
     # ))
+l_t_key_value_pair = store_data_setup(
+        f"Liquidity Terms Creation(Key-Value Pairs)", 
+        batch_payloads[0],
+        InsertDocKeyValues
+    )
+l_t_key_value_pair2 = store_data_setup(
+        f"Liquidity Terms Creation(Key-Value Pairs)", 
+        batch_payloads[1],
+        InsertDocKeyValues
+    )
 
 def get_enum_id(all_data, frequency_name):
     for frequency in all_data:
@@ -517,13 +596,6 @@ liquidity_terms_result_1 = liquidity_terms_result.to_dict()
 liquidity_terms_result_1 = json.dumps(liquidity_terms_result_1, indent=4)
 liquidity_terms_result_1 = json.loads(liquidity_terms_result_1)
 
-# Store liquidity terms creation data
-all_collected_data.append(store_data_for_review(
-    "Liquidity Terms Creation", 
-    liquidity_terms_payloads,
-    "liquidity_terms",
-    liquidity_terms_result_1
-))
 
 step_name = "Liquidity Creation"
 step_id = get_step_id_by_name(Get_All_Steps, step_name)
@@ -538,6 +610,21 @@ InsertStepResult_payload = [
 #     InsertStepResult_payload,
 #     InsertStepResult
 # ))
+
+l_t_step_result = store_data_setup(
+    "Liquidity Terms Creation(Step-Result)", 
+    InsertStepResult_payload,
+    InsertStepResult
+)
+
+# Store liquidity terms creation data
+all_collected_data.append(store_data_for_review(
+    "Liquidity Terms Creation", 
+    liquidity_terms_payloads,
+    "liquidity_terms",
+    liquidity_terms_result_1,
+    [l_t_key_value_pair,l_t_key_value_pair2,l_t_step_result]
+))
 
 #----------------------------------------------------------------------------
 print("Step 6: Asset returns creation")
@@ -573,12 +660,6 @@ for record in step6_result['records']:
     
     asset_returns_payloads.append(assert_return_payload)
 
-# Store asset returns data
-all_collected_data.append(store_data_for_review(
-    "Asset Returns Creation", 
-    asset_returns_payloads,
-    "/AssetValuation/InsertUpdateAssetValuation"
-))
 
 # Store returns key-value pairs
 batch_payload = [
@@ -595,6 +676,12 @@ batch_payload = [
 #     InsertDocKeyValues
 # ))
 
+r_c_key_value_pair = store_data_setup(
+    "Returns Creation(Key-Value Pair)", 
+    batch_payload,
+    InsertDocKeyValues
+)
+
 step_name = "Returns Creation"
 step_id = get_step_id_by_name(Get_All_Steps, step_name)
 print(f"Step ID for Returns Creation'{step_name}':", step_id)
@@ -608,6 +695,20 @@ InsertStepResult_payload = [
 #     InsertStepResult_payload,
 #     InsertStepResult
 # ))
+r_c_step_result = store_data_setup(
+    "Returns Creation(Step-Result)", 
+    InsertStepResult_payload,
+    InsertStepResult
+)
+
+# Store asset returns data
+all_collected_data.append(store_data_for_review(
+    "Asset Returns Creation", 
+    asset_returns_payloads,
+    "/AssetValuation/InsertUpdateAssetValuation",
+    "",
+    [r_c_key_value_pair,r_c_step_result]
+))
 
 # Service providers
 #----------------------------------------------------------------------------
@@ -617,7 +718,7 @@ def get_companies_by_type(company_type_id):
     return client.get_request(f'/Assets/GetCompanyByType/{company_type_id}')
 
 service_provider_response = run_company_validation_crew(activity_id)
-print(service_provider_response)
+print(f"service_provider_response : {service_provider_response}")
 
 company_types = get_company_types()
 
@@ -639,12 +740,48 @@ for company_type in company_types:
                     "url": f"/Assets/InsertUpdateServiceProvider?assetCompanyXRefId=0&CompanyId={company_id}&CompanyTypeId={type_id}&AssetId={asset_id}"
                 })
 
+if hasattr(service_provider_response, "model_dump"):
+    service_provider_response = service_provider_response.model_dump()
+# print(f"servic : {service_provider_response}")
+
+batch_payload = [
+    {
+        "genAIDocumentId": genAIDocumentId,
+        "keyName": "service_provider",
+        "keyValue": service_provider_response['raw']
+    }
+]
+
+s_p_key_value_pair = store_data_setup(
+    "Service Provider(Step-Result)", 
+    batch_payload,
+    InsertDocKeyValues
+)
+
+# step_name = "Service Provider"
+# step_id = get_step_id_by_name(Get_All_Steps, step_name)
+# print(f"Step ID for Returns Creation'{step_name}':", step_id)
+
+# # Store step results instead of API call
+# InsertStepResult_payload = [
+#     {"activityId": activity_id, "genAIDocumentId": genAIDocumentId, "stepId": step_id, "processResult": True, "processMessage": "Success"}]
+
+
+# s_p_step_result = store_data_setup(
+#     "Service Provider(Step-Result)", 
+#     InsertStepResult_payload,
+#     InsertStepResult
+# )
+
 # Store service provider data
 all_collected_data.append(store_data_for_review(
     "Service Providers", 
     service_provider_payloads,
-    "service_providers"  # Special handling for these URLs
+    "service_providers",  # Special handling for these URLs
+    "",
+    [s_p_key_value_pair]
 ))
+
 
 # Save all collected data to a file
 with open('collected_data.json', 'w') as f:

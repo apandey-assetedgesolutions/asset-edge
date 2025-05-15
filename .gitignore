@@ -4,3 +4,7 @@ data/*
 automation/__pycache__/*
 __pycache__/*
 automation/*
+chroma_db_2/*
+dummy/*
+temp_images/
+collected_data.json

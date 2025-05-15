@@ -74,7 +74,7 @@ def run_liquidity_terms_crew(
             "required notice period redemption lockup investor gate liquidity",
             k=10
         )
-        return "\n\n--- SECURITY CONTEXT ---\n".join([
+        return "\n\n--- DOCUMENT CHUNK ---\n".join([
             f"Content : {doc.page_content}\nPage Number : {doc.metadata['page_label']}\nSource File : \'{doc.metadata['source_file']}\'"
             for doc in results
         ])

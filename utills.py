@@ -67,5 +67,5 @@ embedding_model = config["model"]["openai_embeddings"]
 llm = choose_LLM(llm_model)
 embedding = choose_Embeddings(embedding_model)
 
-print(f"Choosen LLM MODEL is : {llm}\n")
-print(f"Choosen Embedding MODEL is : {embedding}\n")
+# print(f"Choosen LLM MODEL is : {llm}\n")
+# print(f"Choosen Embedding MODEL is : {embedding}\n")

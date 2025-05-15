@@ -1,8 +1,8 @@
 import os
-from dotenv import load_dotenv
 import glob
-from langchain_community.document_loaders import PyPDFLoader
-from langchain_unstructured  import UnstructuredLoader
+from dotenv import load_dotenv
+from PyPDF2 import PdfReader
+from langchain_unstructured import UnstructuredLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
@@ -11,23 +11,15 @@ from langchain.docstore.document import Document
 # Load environment variables
 load_dotenv()
 
-from langchain_huggingface import HuggingFaceEmbeddings
-    # from langchain_openai import AzureChatOpenAI
-    # os.environ["AZURE_API_KEY"] = os.getenv('OPENAI_API_KEY')
-    # os.environ["AZURE_API_BASE"] = os.getenv('AZURE_OPENAI_ENDPOINT')
-    # os.environ["OPENAI_API_VERSION"] = "2023-03-15"
+# Optional: HuggingFace alternative (currently not used)
+# from langchain_huggingface import HuggingFaceEmbeddings
+# embedding = HuggingFaceEmbeddings(
+#     model_name='sentence-transformers/all-MiniLM-L12-v2',
+#     model_kwargs={'device': 'cpu'}
+# )
 
-    # llm = AzureChatOpenAI(
-    #     deployment_name="gpt-4o-mini",
-    #     model_name="azure/gpt-4o-mini",
-    #     temperature=0.9,
-    #     top_p=0.9
-    # )
-
-embedding = HuggingFaceEmbeddings(
-    model_name='sentence-transformers/all-MiniLM-L12-v2',
-    model_kwargs={'device': 'cpu'}
-)
+# Embedding model (OpenAI)
+embedding = OpenAIEmbeddings(openai_api_key=os.getenv("OPENAI_API_KEY"))
 
 # Base folder where client folders are stored
 base_folder = "data"
@@ -38,9 +30,6 @@ client_folders = [
     if os.path.isdir(os.path.join(base_folder, client)) and not client.startswith('.')
 ]
 
-# Initialize OpenAI Embeddings
-embedding = OpenAIEmbeddings(openai_api_key=os.getenv("OPENAI_API_KEY"))
-
 # Minimal metadata builder
 def minimal_metadata(doc, file_path, page_label=None):
     return {
@@ -49,7 +38,7 @@ def minimal_metadata(doc, file_path, page_label=None):
         "source": file_path
     }
 
-# Loop through each client folder
+# Process each client folder
 for client in client_folders:
     print(f"\n📂 Processing client: {client}")
     
@@ -65,11 +54,28 @@ for client in client_folders:
     for file_path in file_list:
         try:
             if file_path.lower().endswith(".pdf"):
-                loader = PyPDFLoader(file_path)
-                page_docs = loader.load_and_split()
+                reader = PdfReader(file_path)
+                page_docs = []
 
-                for i, doc in enumerate(page_docs):
-                    doc.metadata = minimal_metadata(doc, file_path, page_label=i + 1)
+                for i, page in enumerate(reader.pages):
+                    text = page.extract_text()
+                    if not text:
+                        continue  # Skip blank/image-only pages
+                    doc = Document(
+                        page_content=text,
+                        metadata=minimal_metadata(None, file_path, page_label=i + 1)
+                    )
+                    page_docs.append(doc)
+
+                # Optional: Chunk long pages (uncomment if needed)
+                # splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+                # chunked_docs = []
+                # for doc in page_docs:
+                #     chunks = splitter.split_documents([doc])
+                #     for chunk in chunks:
+                #         chunk.metadata.update(doc.metadata)
+                #     chunked_docs.extend(chunks)
+                # page_docs = chunked_docs
 
                 documents.extend(page_docs)
                 print(f"✅ Loaded PDF: {file_path}")
@@ -91,7 +97,7 @@ for client in client_folders:
         print(f"⚠️ No documents found for {client}. Skipping...")
         continue
 
-    # Apply chunking only for XLSX (if needed)
+    # Split XLSX content if needed
     non_pdf_docs = [doc for doc in documents if doc.metadata["page_label"] == -1]
     pdf_docs = [doc for doc in documents if doc.metadata["page_label"] != -1]
 
@@ -104,7 +110,7 @@ for client in client_folders:
     # Merge all
     final_docs = pdf_docs + split_non_pdf_docs
 
-    # Persist into Chroma
+    # Store into Chroma
     persist_directory = os.path.join("chroma_db", client)
     vector_db = Chroma.from_documents(
         documents=final_docs,
